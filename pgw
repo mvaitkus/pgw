@@ -1,0 +1,69 @@
+#!/usr/bin/python3
+# PYTHON_ARGCOMPLETE_OK
+
+import configparser
+import pexpect
+import argcomplete, argparse
+import sys, os, subprocess
+from argcomplete.completers import ChoicesCompleter
+from os.path import expanduser
+
+# Read configuration file
+config = configparser.ConfigParser()
+config.read(expanduser('~/.pgw_config'))
+
+# Prepare argument parsing and autocompletion
+def HostCompleter(prefix, **kwargs):
+  return (v for v in config.sections() if v.startswith(prefix))
+
+parser = argparse.ArgumentParser(description='Python gateway wrapper')
+parser.add_argument('host', metavar='host', help='Host configured in .pgw_config').completer = HostCompleter
+argcomplete.autocomplete(parser)
+args = parser.parse_args()
+
+# Prepare gateway config
+gw_user = config['gateway']['user']
+gw_host = config['gateway']['host']
+gw_pass = config['gateway']['password']
+gw_cmd = 'ssh -t {}@{}'.format(gw_user, gw_host)
+
+# Prepare environment config
+if not config.has_section(args.host):
+   exit("Host [{}] configuration not found".format(args.host))
+env_config = config[args.host]
+env_host = env_config['host']
+env_user = env_config['user']
+env_pass = env_config['password']
+env_cmd = '{}@{}'.format(env_user, env_host)
+
+# Read console size
+rows, columns = os.popen('stty size', 'r').read().split()
+
+# Login to gateway
+gateway = pexpect.spawnu(gw_cmd, maxread=20000, env={'LINES':rows, 'COLUMNS':columns, 'TERM':'xterm'})
+gateway.logfile_read = sys.stdout
+gateway.expect('Password:')
+gateway.sendline(gw_pass)
+
+# Login to required env
+gateway.expect('Please enter <username>@<hostname or IP address> to connect to:')
+gateway.sendline(env_cmd)
+env_response = gateway.expect(["[Pp]assword:","yes/no"])
+if env_response == 1:
+  gateway.sendline("yes")
+  gateway.expect("[Pp]assword:")
+gateway.sendline(env_pass)
+
+# set window size for terminal manually, callback defined in documentation fails for some reason
+gateway.setwinsize(int(rows), int(columns)) 
+
+if 'su' in env_config:
+	gateway.sendline('sudo su - {}'.format(env_config['su']))
+	gateway.expect('password for {}:'.format(env_user))
+	gateway.sendline(env_pass)
+
+try:
+    gateway.interact()
+    sys.exit(0)
+except:
+    sys.exit(1)

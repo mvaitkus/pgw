@@ -1,0 +1,17 @@
+[gateway]
+host = gateway.host.net
+user = gatewayuser
+password = gatewaypassword
+
+[some.test]
+host = test.env
+user = testuser
+password = testpassword
+
+[some.prod]
+host = prod.env
+user = produser
+password = prodpassword
+su = usernametouseinprod
+
+
