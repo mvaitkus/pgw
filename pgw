@@ -58,9 +58,10 @@ gateway.sendline(env_pass)
 gateway.setwinsize(int(rows), int(columns)) 
 
 if 'su' in env_config:
-	gateway.sendline('sudo su - {}'.format(env_config['su']))
-	gateway.expect('password for {}:'.format(env_user))
-	gateway.sendline(env_pass)
+  gateway.sendline('sudo su - {}'.format(env_config['su']))
+  su_response = gateway.expect(['password for {}:'.format(env_user), '$'])
+  if su_response == 0:
+    gateway.sendline(env_pass)
 
 try:
     gateway.interact()
